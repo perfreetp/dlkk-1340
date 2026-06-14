@@ -12,9 +12,19 @@ import Settings from "@/pages/Settings";
 import AppLayout from "@/components/Layout/AppLayout";
 import { useAuthStore, useGlobalStore } from "@/store";
 
+const pagePermissionMap: Record<string, string> = {
+  dashboard: "dashboard",
+  devices: "devices",
+  orders: "orders",
+  packages: "packages",
+  alarms: "alarms",
+  users: "users",
+  reports: "reports",
+  settings: "settings",
+};
+
 function RequireAuth({ children }: { children: JSX.Element }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const user = useAuthStore((s) => s.user);
   const location = useLocation();
 
   useEffect(() => {
@@ -36,6 +46,18 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
+function PermissionGuard({ children, page }: { children: JSX.Element; page: string }) {
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+  const getFirstAllowedPage = useAuthStore((s) => s.getFirstAllowedPage);
+
+  if (!hasPermission(pagePermissionMap[page] || page)) {
+    const firstPage = getFirstAllowedPage();
+    return <Navigate to={`/${firstPage}`} replace />;
+  }
+
+  return children;
+}
+
 function RouteWatcher() {
   const location = useLocation();
   const setCurrentPage = useGlobalStore((s) => s.setCurrentPage);
@@ -48,6 +70,31 @@ function RouteWatcher() {
   return null;
 }
 
+function AuthenticatedRoute({ page }: { page: string }) {
+  const PageComponent = {
+    dashboard: Dashboard,
+    devices: Devices,
+    orders: Orders,
+    packages: Packages,
+    alarms: Alarms,
+    users: Users,
+    reports: Reports,
+    settings: Settings,
+  }[page];
+
+  if (!PageComponent) return <Navigate to="/dashboard" replace />;
+
+  return (
+    <RequireAuth>
+      <PermissionGuard page={page}>
+        <AppLayout>
+          <PageComponent />
+        </AppLayout>
+      </PermissionGuard>
+    </RequireAuth>
+  );
+}
+
 export default function App() {
   return (
     <Router>
@@ -55,86 +102,14 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
-        <Route
-          path="/dashboard"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <Dashboard />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/devices"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <Devices />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/orders"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <Orders />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/packages"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <Packages />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/alarms"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <Alarms />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/users"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <Users />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/reports"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <Reports />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <RequireAuth>
-              <AppLayout>
-                <Settings />
-              </AppLayout>
-            </RequireAuth>
-          }
-        />
+        <Route path="/dashboard" element={<AuthenticatedRoute page="dashboard" />} />
+        <Route path="/devices" element={<AuthenticatedRoute page="devices" />} />
+        <Route path="/orders" element={<AuthenticatedRoute page="orders" />} />
+        <Route path="/packages" element={<AuthenticatedRoute page="packages" />} />
+        <Route path="/alarms" element={<AuthenticatedRoute page="alarms" />} />
+        <Route path="/users" element={<AuthenticatedRoute page="users" />} />
+        <Route path="/reports" element={<AuthenticatedRoute page="reports" />} />
+        <Route path="/settings" element={<AuthenticatedRoute page="settings" />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>

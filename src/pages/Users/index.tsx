@@ -23,7 +23,7 @@ import {
 import { mockUsers, mockRefundRequests, mockPackages } from '@/data/mockData';
 import { formatMoney, formatDateTime, formatPhone } from '@/utils/format';
 import StatusTag from '@/components/StatusTag';
-import type { User as UserType, UserStatus, RefundRequest } from '@/types';
+import type { User as UserType, UserStatus, RefundRequest, RefundStatus } from '@/types';
 
 type TabKey = 'list' | 'refund';
 
@@ -249,9 +249,10 @@ function UserDetailDrawer({ user, onClose }: UserDetailDrawerProps) {
 interface RechargeModalProps {
   user: UserType;
   onClose: () => void;
+  onConfirm: (amount: number, bonus: number) => void;
 }
 
-function RechargeModal({ user, onClose }: RechargeModalProps) {
+function RechargeModal({ user, onClose, onConfirm }: RechargeModalProps) {
   const [selectedPackage, setSelectedPackage] = useState<string>('');
   const [customAmount, setCustomAmount] = useState<string>('');
 
@@ -275,7 +276,7 @@ function RechargeModal({ user, onClose }: RechargeModalProps) {
 
   const handleConfirm = () => {
     if (totalAmount <= 0) return;
-    alert(`已为用户 ${user.name} 充值 ${formatMoney(totalAmount)}，赠送 ${formatMoney(bonusAmount)}`);
+    onConfirm(totalAmount, bonusAmount);
     onClose();
   };
 
@@ -389,9 +390,10 @@ function RechargeModal({ user, onClose }: RechargeModalProps) {
 interface CouponModalProps {
   user: UserType;
   onClose: () => void;
+  onConfirm: (coupon: { name: string; amount: number; validFrom: string; validTo: string }) => void;
 }
 
-function CouponModal({ user, onClose }: CouponModalProps) {
+function CouponModal({ user, onClose, onConfirm }: CouponModalProps) {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState<string>('');
   const [validFrom, setValidFrom] = useState('');
@@ -402,7 +404,7 @@ function CouponModal({ user, onClose }: CouponModalProps) {
       alert('请填写完整信息');
       return;
     }
-    alert(`已为用户 ${user.name} 发放「${name}」面额 ¥${amount}`);
+    onConfirm({ name, amount: Number(amount), validFrom, validTo });
     onClose();
   };
 
@@ -614,8 +616,11 @@ export default function Users() {
   const [couponUser, setCouponUser] = useState<UserType | null>(null);
   const [refundReview, setRefundReview] = useState<{ refund: RefundRequest; action: 'approve' | 'reject' } | null>(null);
 
+  const [users, setUsers] = useState<UserType[]>(() => [...mockUsers]);
+  const [refundRequests, setRefundRequests] = useState<RefundRequest[]>(() => [...mockRefundRequests]);
+
   const filteredUsers = useMemo(() => {
-    return mockUsers.filter((user) => {
+    return users.filter((user) => {
       if (searchText) {
         const lowerSearch = searchText.toLowerCase();
         const matchName = user.name.toLowerCase().includes(lowerSearch);
@@ -626,7 +631,7 @@ export default function Users() {
       if (statusFilter !== 'all' && user.status !== statusFilter) return false;
       return true;
     });
-  }, [searchText, statusFilter]);
+  }, [searchText, statusFilter, users]);
 
   const totalPages = Math.ceil(filteredUsers.length / pageSize);
   const paginatedUsers = filteredUsers.slice(
@@ -634,20 +639,59 @@ export default function Users() {
     currentPage * pageSize
   );
 
-  const pendingRefunds = useMemo(() => mockRefundRequests.filter((r) => r.status === 'pending'), []);
+  const pendingRefunds = useMemo(() => refundRequests.filter((r) => r.status === 'pending'), [refundRequests]);
 
   const handleBlockToggle = (user: UserType) => {
     const action = user.status === 'normal' ? '拉黑' : '解禁';
     if (confirm(`确定要${action}用户 ${user.name} 吗？`)) {
-      alert(`已${action}用户 ${user.name}`);
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id
+            ? { ...u, status: u.status === 'normal' ? 'blocked' as UserStatus : 'normal' as UserStatus }
+            : u
+        )
+      );
     }
   };
 
   const handleRefundReviewConfirm = (remark: string) => {
     if (!refundReview) return;
-    const action = refundReview.action === 'approve' ? '通过' : '拒绝';
-    alert(`已${action}退款申请 ${refundReview.refund.refundNo}${remark ? `，备注：${remark}` : ''}`);
+    setRefundRequests((prev) =>
+      prev.map((r) =>
+        r.id === refundReview.refund.id
+          ? { ...r, status: (refundReview.action === 'approve' ? 'approved' : 'rejected') as RefundStatus }
+          : r
+      )
+    );
     setRefundReview(null);
+  };
+
+  const handleRechargeConfirm = (userId: string, amount: number, bonus: number) => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? { ...u, balance: u.balance + amount + bonus, totalRecharge: u.totalRecharge + amount }
+          : u
+      )
+    );
+  };
+
+  const handleCouponConfirm = (userId: string, coupon: { name: string; amount: number; validFrom: string; validTo: string }) => {
+    const newCoupon = {
+      id: `cpn-${Date.now()}`,
+      name: coupon.name,
+      amount: coupon.amount,
+      validFrom: new Date(coupon.validFrom).toISOString(),
+      validTo: new Date(coupon.validTo).toISOString(),
+      used: false,
+    };
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? { ...u, coupons: [...u.coupons, newCoupon] }
+          : u
+      )
+    );
   };
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode; badge?: number }[] = [
@@ -892,7 +936,7 @@ export default function Users() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
-                {mockRefundRequests.length === 0 ? (
+                {refundRequests.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -902,7 +946,7 @@ export default function Users() {
                     </td>
                   </tr>
                 ) : (
-                  mockRefundRequests.map((refund, index) => (
+                  refundRequests.map((refund, index) => (
                     <tr
                       key={refund.id}
                       className={`${index % 2 === 0 ? 'bg-white' : 'bg-neutral-50/50'} hover:bg-primary-50/50 transition-colors cursor-default`}
@@ -955,15 +999,26 @@ export default function Users() {
       </div>
 
       {detailUser && (
-        <UserDetailDrawer user={detailUser} onClose={() => setDetailUser(null)} />
+        <UserDetailDrawer
+          user={users.find((u) => u.id === detailUser.id) ?? detailUser}
+          onClose={() => setDetailUser(null)}
+        />
       )}
 
       {rechargeUser && (
-        <RechargeModal user={rechargeUser} onClose={() => setRechargeUser(null)} />
+        <RechargeModal
+          user={users.find((u) => u.id === rechargeUser.id) ?? rechargeUser}
+          onClose={() => setRechargeUser(null)}
+          onConfirm={(amount, bonus) => handleRechargeConfirm(rechargeUser.id, amount, bonus)}
+        />
       )}
 
       {couponUser && (
-        <CouponModal user={couponUser} onClose={() => setCouponUser(null)} />
+        <CouponModal
+          user={users.find((u) => u.id === couponUser.id) ?? couponUser}
+          onClose={() => setCouponUser(null)}
+          onConfirm={(coupon) => handleCouponConfirm(couponUser.id, coupon)}
+        />
       )}
 
       {refundReview && (

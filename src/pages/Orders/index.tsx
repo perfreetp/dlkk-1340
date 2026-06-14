@@ -285,7 +285,28 @@ export default function Orders() {
   }, [filteredOrders]);
 
   const handleExport = () => {
-    alert('Excel 文件下载已触发！');
+    const headers = ['订单号', '用户名称', '设备编号', '取水量(L)', '金额(元)', '支付方式', '订单状态', '取水时长(秒)', '下单时间'];
+    const rows = filteredOrders.map((order) => [
+      order.orderNo,
+      order.userName,
+      order.deviceNo,
+      String(order.waterAmount),
+      String(order.amount),
+      getStatusText(order.payMethod),
+      getStatusText(order.status),
+      String(order.duration),
+      formatDateTime(order.createdAt),
+    ]);
+    const csv = '\uFEFF' + [headers, ...rows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    a.href = url;
+    a.download = `订单流水_${dateStr}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleReset = () => {

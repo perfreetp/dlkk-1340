@@ -143,10 +143,6 @@ const ChartCard = ({ title, subtitle, icon, children, onExport, className = '' }
   );
 };
 
-const handleExport = (chartName: string) => {
-  alert(`正在导出「${chartName}」报表...`);
-};
-
 const TimeDimensionToggle = ({
   value,
   onChange,
@@ -217,6 +213,63 @@ export default function Reports() {
   const userGrowthData = useMemo(() => generateUserGrowthData(timeDimension), [timeDimension]);
   const rechargeDistributionData = useMemo(() => generateRechargeDistributionData(), []);
   const activeTimeHeatData = useMemo(() => generateActiveTimeHeatData(), []);
+
+  const handleExport = (chartName: string) => {
+    const dataMap: Record<string, { headers: string[]; rows: string[][] }> = {
+      '取水量趋势': {
+        headers: ['日期', '取水量(L)', '收入(元)'],
+        rows: waterTrendData.map((d) => [d.date, String(d.volume), String(d.revenue)]),
+      },
+      '楼栋取水量对比': {
+        headers: ['楼栋', '取水量(L)'],
+        rows: buildingWaterData.map((d) => [d.building, String(d.volume)]),
+      },
+      '收入对比': {
+        headers: ['日期', '充值收入(元)', '消费收入(元)'],
+        rows: revenueCompareData.map((d) => [d.date, String(d.recharge), String(d.consume)]),
+      },
+      '套餐销售分布': {
+        headers: ['套餐名称', '销量(份)'],
+        rows: packageSaleData.map((d) => [d.name, String(d.value)]),
+      },
+      '设备使用率排名': {
+        headers: ['设备编号', '楼栋', '使用率(%)'],
+        rows: deviceRankData.map((d) => [d.deviceNo, d.building, String(d.usage)]),
+      },
+      '故障类型分布': {
+        headers: ['故障类型', '数量(次)'],
+        rows: faultTypeData.map((d) => [d.name, String(d.value)]),
+      },
+      '告警趋势': {
+        headers: ['日期', '告警数(条)'],
+        rows: alarmTrendData.map((d) => [d.date, String(d.count)]),
+      },
+      '用户增长趋势': {
+        headers: ['日期', '用户总数', '新增用户'],
+        rows: userGrowthData.map((d) => [d.date, String(d.total), String(d.newUsers)]),
+      },
+      '充值金额分布': {
+        headers: ['充值区间', '用户数(人)'],
+        rows: rechargeDistributionData.map((d) => [d.range, String(d.count)]),
+      },
+      '活跃时段热力图': {
+        headers: ['时段', '工作日(人)', '周末(人)'],
+        rows: activeTimeHeatData.map((d) => [d.hour, String(d.weekday), String(d.weekend)]),
+      },
+    };
+    const data = dataMap[chartName];
+    if (!data) return;
+    const csv = '\uFEFF' + [data.headers, ...data.rows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    a.href = url;
+    a.download = `${chartName}_${dateStr}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const renderWaterTab = () => (
     <div className="space-y-5">

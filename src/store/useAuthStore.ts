@@ -7,6 +7,8 @@ interface AuthState {
   login: (username: string, password: string) => boolean;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
+  getRolePermissions: () => string[];
+  getFirstAllowedPage: () => string;
 }
 
 const mockUsers: Record<string, { password: string; role: UserRole; name: string }> = {
@@ -22,6 +24,8 @@ const rolePermissions: Record<UserRole, string[]> = {
   operator: ['dashboard', 'packages', 'users', 'orders', 'reports'],
   maintenance: ['dashboard', 'alarms', 'devices'],
 };
+
+const pageOrder = ['dashboard', 'devices', 'orders', 'packages', 'alarms', 'users', 'reports', 'settings'];
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -53,5 +57,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!state.user) return false;
     const perms = rolePermissions[state.user.role];
     return perms.includes('all') || perms.includes(permission);
+  },
+
+  getRolePermissions: () => {
+    const state = get();
+    if (!state.user) return [];
+    const perms = rolePermissions[state.user.role];
+    if (perms.includes('all')) return pageOrder;
+    return perms;
+  },
+
+  getFirstAllowedPage: () => {
+    const perms = get().getRolePermissions();
+    return perms[0] || 'dashboard';
   },
 }));
