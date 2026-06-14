@@ -27,9 +27,24 @@ const rolePermissions: Record<UserRole, string[]> = {
 
 const pageOrder = ['dashboard', 'devices', 'orders', 'packages', 'alarms', 'users', 'reports', 'settings'];
 
+function getStoredUser(): { user: AuthUser | null; isAuthenticated: boolean } {
+  try {
+    const stored = localStorage.getItem('auth_user');
+    if (stored) {
+      const parsed = JSON.parse(stored) as AuthUser;
+      if (parsed.id && parsed.role) {
+        return { user: parsed, isAuthenticated: true };
+      }
+    }
+  } catch {}
+  return { user: null, isAuthenticated: false };
+}
+
+const initial = getStoredUser();
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  isAuthenticated: false,
+  user: initial.user,
+  isAuthenticated: initial.isAuthenticated,
 
   login: (username, password) => {
     const userInfo = mockUsers[username];

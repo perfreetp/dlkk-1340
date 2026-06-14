@@ -27,19 +27,7 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const location = useLocation();
 
-  useEffect(() => {
-    const stored = localStorage.getItem("auth_user");
-    if (stored && !isAuthenticated) {
-      try {
-        const parsed = JSON.parse(stored);
-        useAuthStore.setState({ user: parsed, isAuthenticated: true });
-      } catch {}
-    }
-  }, [isAuthenticated]);
-
-  const finalAuth = isAuthenticated || !!localStorage.getItem("auth_user");
-
-  if (!finalAuth) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
